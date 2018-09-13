@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Face UI</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0-rc.2/css/materialize.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0-rc.2/js/materialize.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.5.17/dist/vue.js"></script>
+    <script src="https://use.fontawesome.com/releases/v5.3.1/js/all.js" data-auto-replace-svg="nest"></script>
+    <script src="node_modules/tracking/build/tracking.js"></script>
+    <script src="node_modules/tracking/build/data/face.js"></script>
+    <script src="/js/face-api.js"></script>
+    <style>
+        .camera {
+            width: 400px;
+            height: 300px;
+            margin-top: 2vh;
+            border-radius: 1rem;
+            padding: 0 !important;
+            overflow: hidden;
+            margin-right: auto;
+            margin-left: auto;
+            position: relative;
+        }
+
+        .brand-logo svg {
+            margin-top: auto;
+            margin-bottom: auto;
+            display: block;
+            margin-top: 1vh;
+        }
+
+        video,
+        canvas {
+            width: 400px;
+            height: 300px;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        .model-progress, .app {
+            margin-top: 3vh;
+        }
+
+    </style>
+</head>
+
+<body>
+    <nav>
+        <div class="nav-wrapper">
+            <a href="#" class="brand-logo center pulse"><i class="far fa-grin-tongue-wink fa-2x"></i></a>
+        </div>
+    </nav>
+    <div class="container">
+        <div class="row">
+            <div class="col s8 offset-s2 center">
+                <div class="camera">
+                    <video id="video" width="400" height="300" autoplay preload="auto"></video>
+                    <canvas id="canvas" width="400" height="300"></canvas>
+                    
+                </div>
+            </div>
+            <div class="col s6 offset-s3 center model-progress">
+                Loading Models
+                <div class="progress">
+                    <div class="indeterminate"></div>
+                </div>
+            </div>
+            <div class="col s6 offset-s3 app">
+                <div class="col s12 center">
+                    <a class="waves-effect waves-light btn" v-on:click="addImage"><i class="material-icons left">face</i>Acquire</a>
+                </div>
+                
+                <div class="col s12">
+                    <div class="card-panel grey lighten-5 z-depth-1" v-for="image in images">
+                        <div class="row valign-wrapper">
+                            <div class="col s2">
+                                <img :src="image.url" alt="" class="circle responsive-img">
+                                <!-- notice the "circle" class -->
+                            </div>
+                            <div class="col s10">
+                                <span class="black-text"><b>Name:</b> {{image.name}}.</span>
+                                <a class="waves-effect waves-light btn" v-bind:class="{'blue': trackFace == image }" v-on:click="track(image)"><i class="material-icons">gps_fixed</i></a>
+                                <a class="waves-effect waves-light btn red" v-on:click="remove(image)"><i class="material-icons">remove_circle</i></a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+            </div>
+        </div>
+    </div>
+    <canvas id="face" class="hide"></canvas>
+    <script>
+        const minConfidence = 0.1
+        const maxResults = 10
+        const videoElement = document.querySelector('video');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const face_canvas = document.getElementById('face');
+        const face_ctx = face_canvas.getContext('2d');
+
+        let faceCoords = null;
+
+        const tracker = new tracking.ObjectTracker('face');
+        tracker.setInitialScale(3);
+        tracker.setStepSize(2);
+        tracker.setEdgesDensity(0.1);
+
+        const app = new Vue({
+            el: '.app',
+            data: {
+                images: [],
+                trackFace: null,
+                faceName: null
+            },
+            methods: {
+                addImage: function() {
+                    this.images.push({
+                        url: face_canvas.toDataURL('image/jpeg', 0.5),
+                        name: prompt('enter face name'),
+                        source: detectFaces('face')
+                    });
+                    console.log(this.images)
+                },
+                remove(image) {
+                    if(image === this.trackFace) {
+                        this.trackFace = null;
+                    }
+                    this.images.splice(this.images.indexOf(image), 1)
+                },
+                track(img) {
+                    if(this.trackFace === img) {
+                        this.trackFace = null;
+                        return;
+                    }
+                    this.trackFace = img
+                }
+            }
+        });
+
+        function trackFace() {
+            const {x, y, width, height } = transform(faceCoords);
+            face_canvas.width = width;
+            face_canvas.height = height;
+            face_ctx.drawImage(videoElement, x, y, width, height, 0, 0, width, height);
+        }
+
+        function transform(faceCoords) {
+            if (!faceCoords) {
+                return { x: 0, y:0, width: 0, height:0  };
+            }
+            let x = 0;
+            let y = 0;
+            let fwidth = 0;
+            let fheight = 0;
+            const { width, height } = faceapi.getMediaDimensions(videoElement);
+            
+            y = (height*faceCoords.y)/videoElement.height;
+            x = (width*faceCoords.x)/videoElement.width;
+            fwidth = (width*faceCoords.width)/videoElement.width;
+
+            return {
+                x: x, y: y, width: fwidth, height: fwidth
+            };
+        }
+
+      
+        // Create face squaRE
+        tracker.on('track', event => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            event.data.forEach(rect => {
+                faceCoords = rect; // Setting face coords for a single face
+                ctx.strokeStyle = '#a64ceb';
+                ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+                ctx.font = '11px Helvetica';
+                ctx.fillStyle = "#ff0000";
+                ctx.fillText('x: ' + rect.x + 'px', rect.x + rect.width + 5, rect.y + 11);
+                ctx.fillText('y: ' + rect.y + 'px', rect.x + rect.width + 5, rect.y + 22);
+                if (app.faceName) {
+                    ctx.fillText(app.faceName, rect.x + rect.width + 5, rect.y + 33);
+                }
+            });
+            trackFace();
+            if(app.trackFace) {
+                Promise.all([detectFaces('face'), app.trackFace.source])
+                .then(faces => {
+                    const distance = faceapi.euclideanDistance(faces[0], faces[1]);
+                    console.log(distance);
+                    if (distance < 0.6) {
+                        app.faceName = app.trackFace.name;
+                    } else {
+                        app.faceName = null;
+                    }
+                });
+                
+
+            }
+        });
+
+
+        function startVideo() {
+            tracking.track('#video', tracker, {
+                camera: true
+            });
+        }
+
+        async function loadModels() {
+            await faceapi.loadFaceDetectionModel('/models');
+            await faceapi.loadFaceRecognitionModel('/models');
+            document.querySelector('.model-progress').classList.add('hide');
+            startVideo();
+        }
+
+        async function detectFaces(selector) {
+            return await faceapi.computeFaceDescriptor(selector)
+        }
+
+        loadModels();
+        
+    </script>
+</body>
+
+</html>
