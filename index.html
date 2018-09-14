@@ -131,9 +131,8 @@
             const instances = M.Modal.init(elems);
         });
         // Starting detection on play
-        videoElement.onplay = () => {
-            detectFaces();
-        };
+        videoElement.onplay = () => detectFaces();
+        videoElement.onloadedmetadata = () => videoElement.play();
 
      
 
