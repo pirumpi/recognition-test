@@ -11,80 +11,70 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0-rc.2/js/materialize.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/vue@2.5.17/dist/vue.js"></script>
     <script src="https://use.fontawesome.com/releases/v5.3.1/js/all.js" data-auto-replace-svg="nest"></script>
-    <script src="node_modules/tracking/build/tracking.js"></script>
-    <script src="node_modules/tracking/build/data/face.js"></script>
     <script src="/js/face-api.js"></script>
     <style>
         .camera {
-            width: 400px;
-            height: 300px;
-            margin-top: 2vh;
-            border-radius: 1rem;
-            padding: 0 !important;
-            overflow: hidden;
-            margin-right: auto;
-            margin-left: auto;
-            position: relative;
+            width: 600px; height: 400px; margin-top: 2vh; padding: 0 !important;
+            overflow: hidden; margin-right: auto; margin-left: auto; position: relative;
         }
 
-        .brand-logo svg {
-            margin-top: auto;
-            margin-bottom: auto;
-            display: block;
-            margin-top: 1vh;
-        }
+        .brand-logo svg { margin-top: auto; margin-bottom: auto;  display: block; margin-top: 0.5vh; }
 
-        video,
-        canvas {
-            width: 400px;
-            height: 300px;
-        }
+        video, canvas { width: 600px; height: 400px; }
 
-        canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-        }
+        canvas { position: absolute; top: 0; left: 0; }
 
-        .model-progress, .app {
-            margin-top: 3vh;
+        .model-progress, .app { margin-top: 3vh; }
+
+        @media only screen and (max-width: 768px) {
+            /* For mobile phones: */
+            video, canvas { width: 100%; height: unset; }
+            .camera { width: unset; height: unset;}
         }
 
     </style>
 </head>
 
 <body>
+    <!--Page header-->
     <nav>
-        <div class="nav-wrapper">
-            <a href="#" class="brand-logo center pulse"><i class="far fa-grin-tongue-wink fa-2x"></i></a>
+        <div class="nav-wrapper blue">
+            <a href="#" class="brand-logo center pulse"><i class="far fa-grin-tongue-wink fa-2x"></i>Face Recognition</a>
         </div>
     </nav>
+
     <div class="container">
         <div class="row">
-            <div class="col s8 offset-s2 center">
+            <div class="col s12 m8 offset-m2 center">
+                <!-- Video display -->
                 <div class="camera">
-                    <video id="video" width="400" height="300" autoplay preload="auto"></video>
-                    <canvas id="canvas" width="400" height="300"></canvas>
-                    
+                    <video id="video" autoplay preload="auto"></video>
+                    <canvas id="canvas"></canvas>
                 </div>
             </div>
-            <div class="col s6 offset-s3 center model-progress">
+            <!--Loading model progress bar-->
+            <div class="col s12 m6 offset-m3 center model-progress">
                 Loading Models
                 <div class="progress">
                     <div class="indeterminate"></div>
                 </div>
             </div>
-            <div class="col s6 offset-s3 app">
-                <div class="col s12 center">
-                    <a class="waves-effect waves-light btn" v-on:click="addImage"><i class="material-icons left">face</i>Acquire</a>
+
+            <div class="col s12 m6 offset-m3  app">
+                <!-- Floating add image button -->
+                <div class="fixed-action-btn">
+                    <a id="menu" class="waves-effect waves-light btn-large btn btn-floating blue" v-on:click="addImage" ><i class="material-icons">camera</i></a>
                 </div>
                 
+                <!-- Adding modal inside Vue App -->
+                
+
                 <div class="col s12">
-                    <div class="card-panel grey lighten-5 z-depth-1" v-for="image in images">
+                    
+                    <!--<div class="card-panel grey lighten-5 z-depth-1" v-for="image in images">
                         <div class="row valign-wrapper">
                             <div class="col s2">
                                 <img :src="image.url" alt="" class="circle responsive-img">
-                                <!-- notice the "circle" class -->
                             </div>
                             <div class="col s10">
                                 <span class="black-text"><b>Name:</b> {{image.name}}.</span>
@@ -92,28 +82,60 @@
                                 <a class="waves-effect waves-light btn red" v-on:click="remove(image)"><i class="material-icons">remove_circle</i></a>
                             </div>
                         </div>
-                    </div>
+                    </div>-->
+
+
                 </div>
                 
             </div>
         </div>
     </div>
     <canvas id="face" class="hide"></canvas>
+    <div id="modal1" class="modal">
+        <div class="modal-content">
+            <h4>face name</h4>
+            <div class="row">
+                    <div class="col m2 s12">
+                        <img src="yuna.jpg" alt="" class="circle responsive-img"> <!-- notice the "circle" class -->
+                    </div>
+                    <div class="col input-field m10 s12">
+                        <input id="face_name" type="text" class="validate">
+                        <label for="face_name">Face Name</label>
+                    </div>
+                    </div>
+        </div>
+        <div class="modal-footer">
+            <a href="#!" class="modal-action modal-close waves-effect waves-green btn-flat">Add</a>
+        </div>
+    </div>
+  
     <script>
-        const minConfidence = 0.1
-        const maxResults = 10
+        // Face detection config
+        let scoreThreshold = 0.5
+        let sizeType = '224'
+
+        // Querying all required elements from the DOM
         const videoElement = document.querySelector('video');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
         const face_canvas = document.getElementById('face');
         const face_ctx = face_canvas.getContext('2d');
+        const modal = document.getElementById('modal1');
 
         let faceCoords = null;
+        
+        // Setting event listener
+        // Loading modals
+        document.addEventListener('DOMContentLoaded', function() {
+            const elems = document.querySelectorAll('.modal');
+            const instances = M.Modal.init(elems);
+        });
+        // Starting detection on play
+        videoElement.onplay = () => {
+            detectFaces();
+        };
 
-        const tracker = new tracking.ObjectTracker('face');
-        tracker.setInitialScale(3);
-        tracker.setStepSize(2);
-        tracker.setEdgesDensity(0.1);
+     
 
         const app = new Vue({
             el: '.app',
@@ -124,11 +146,12 @@
             },
             methods: {
                 addImage: function() {
-                    this.images.push({
+                   /* this.images.push({
                         url: face_canvas.toDataURL('image/jpeg', 0.5),
                         name: prompt('enter face name'),
                         source: detectFaces('face')
-                    });
+                    });*/
+                    M.Modal.getInstance(modal).open();
                     console.log(this.images)
                 },
                 remove(image) {
@@ -175,7 +198,7 @@
 
       
         // Create face squaRE
-        tracker.on('track', event => {
+        /* tracker.on('track', event => {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             event.data.forEach(rect => {
                 faceCoords = rect; // Setting face coords for a single face
@@ -204,23 +227,42 @@
                 
 
             }
-        });
+        });*/
 
 
         function startVideo() {
-            tracking.track('#video', tracker, {
-                camera: true
-            });
+            // tracking.track('#video', tracker, {
+            //     camera: true
+            // });
+            navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => {
+                videoElement.srcObject = stream;
+            }).catch(console.error);
+        }
+
+        async function detectFaces() {
+            const { width, height } = faceapi.getMediaDimensions(videoElement);
+            canvas.width = width;
+            canvas.height = height;
+            
+            const forwardParams = {
+                inputSize: parseInt(sizeType),
+                scoreThreshold
+            };
+
+            result = await faceapi.tinyYolov2(videoElement, forwardParams);
+            faceapi.drawDetection(canvas, result.map(det => det.forSize(width, height)));
+            requestAnimationFrame(detectFaces);
         }
 
         async function loadModels() {
-            await faceapi.loadFaceDetectionModel('/models');
+            await faceapi.loadTinyYolov2Model('/models');
             await faceapi.loadFaceRecognitionModel('/models');
             document.querySelector('.model-progress').classList.add('hide');
             startVideo();
         }
 
-        async function detectFaces(selector) {
+        async function recog(selector) {
             return await faceapi.computeFaceDescriptor(selector)
         }
 
