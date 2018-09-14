@@ -110,9 +110,7 @@
                     const image = {};
                     if (faceCoords && faceCoords.length) {
                         const detect = faceCoords[0];
-                        const cvs = getCanvas(detect);
-                        const url = cvs.toDataURL('image/jpeg', 0.5);
-                        const detector = await faceapi.computeFaceDescriptor(cvs)
+                        const { detector, url } = await getCanvasData(detect);
                         image.url = url;
                         image.detector = detector;
                         image.name = prompt('face name') || 'Unknown';
@@ -126,19 +124,15 @@
             }
         });
 
-        function getCanvas(detect) {
+        async function getCanvasData(detect) {
             const cvs = document.createElement('canvas');
             const cts = cvs.getContext('2d');
             cvs.width = detect.box.width;
             cvs.height = detect.box.height;
             cts.drawImage(videoElement, detect.box.x, detect.box.y, detect.box.width, detect.box.height, 0, 0, detect.box.width, detect.box.height);
-            return cvs;
-        }
-
-        function startVideo() {
-            navigator.mediaDevices.getUserMedia({video : true})
-            .then(stream => videoElement.srcObject = stream,
-                err => console.log('ERROR: ', err));
+            const detector = await faceapi.computeFaceDescriptor(cvs);
+            const url = cvs.toDataURL('image/jpeg', 0.5);
+            return { detector: detector, url: url };
         }
 
         async function detectFaces() {
@@ -146,21 +140,20 @@
             canvas.width = width;
             canvas.height = height;
             
-            const forwardParams = {
-                inputSize: parseInt(sizeType),
-                scoreThreshold
-            };
+            const forwardParams = { inputSize: parseInt(sizeType), scoreThreshold };
 
             const result = await faceapi.tinyYolov2(videoElement, forwardParams);
             const detectionsForSize = result.map(det => det.forSize(width, height))
             faceapi.drawDetection(canvas, detectionsForSize, { withScore: false });
-            
+            faceCoords = detectionsForSize;
+
             // Check if there is some training faces available
-            if (app.images.length){
-                
+            if (app.images.length && result.length){
+                faceCoords.forEach(detect => {
+                    recognize(detect);
+                });         
             }
 
-            faceCoords = detectionsForSize;
             requestAnimationFrame(detectFaces);
         }
 
@@ -168,7 +161,11 @@
             await faceapi.loadTinyYolov2Model('/models');
             await faceapi.loadFaceRecognitionModel('/models');
             document.querySelector('.model-progress').classList.add('hide');
-            startVideo();
+            
+            // start webcam
+            navigator.mediaDevices.getUserMedia({video : true})
+            .then(stream => videoElement.srcObject = stream,
+                err => console.log('ERROR: ', err));
         }
 
         loadModels();
