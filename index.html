@@ -136,14 +136,13 @@
         }
 
         function startVideo() {
-            navigator.mediaDevices.getUserMedia({ video: true })
-            .then(stream => {
-                videoElement.srcObject = stream;
-            }).catch(console.error);
+            navigator.mediaDevices.getUserMedia({video : true})
+            .then(stream => videoElement.srcObject = stream,
+                err => console.log('ERROR: ', err));
         }
 
         async function detectFaces() {
-            const { width, height } = faceapi.getMediaDimensions(videoElement);
+            /*const { width, height } = faceapi.getMediaDimensions(videoElement);
             canvas.width = width;
             canvas.height = height;
             
@@ -162,7 +161,7 @@
             }
 
             faceCoords = detectionsForSize;
-            requestAnimationFrame(detectFaces);
+            requestAnimationFrame(detectFaces);*/
         }
 
         async function loadModels() {
