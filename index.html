@@ -149,13 +149,23 @@
 
             // Check if there is some training faces available
             if (app.images.length && result.length){
-                faceCoords.forEach(detect => {
-                    recognize(detect);
+                faceCoords.forEach( async detect => {
+                    const { detector } = await getCanvasData(detect);
+                    recognize(detector);
                 });         
             }
-
             requestAnimationFrame(detectFaces);
         }
+
+        function recognize(face) {
+            let result = [];
+            app.images.forEach(person => {
+                const distance = faceapi.euclideanDistance(person.detector, face.detector);
+                console.log(distance);
+            })
+        }
+
+
 
         async function loadModels() {
             await faceapi.loadTinyYolov2Model('/models');
