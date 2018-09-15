@@ -151,21 +151,28 @@
             if (app.images.length && result.length){
                 faceCoords.forEach( async detect => {
                     const { detector } = await getCanvasData(detect);
-                    recognize(detector);
+                    const face = recognize(detector);
+                    if (face && face.distance < 0.4) {
+                        console.log(face);
+                        const { x, y, height } = detect.getBox()
+                        faceapi.drawText(
+                            ctx,
+                            x,
+                            y + height,
+                            face.name,
+                           { color: 'red', fontSize: 16 }
+                        )
+                    }
                 });         
             }
             requestAnimationFrame(detectFaces);
         }
 
         function recognize(face) {
-            let result = [];
-            app.images.forEach(person => {
-                const distance = faceapi.euclideanDistance(person.detector, face.detector);
-                console.log(distance);
-            })
+            return app.images.map(({detector, name }) => ({
+                distance: faceapi.euclideanDistance(face, detector), name
+            })).reduce((best, curr) => best.distance < curr.distance ? best : curr);
         }
-
-
 
         async function loadModels() {
             await faceapi.loadTinyYolov2Model('/models');
