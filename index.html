@@ -41,7 +41,7 @@
     <!--Page header-->
     <nav>
         <div class="nav-wrapper blue">
-            <a href="#" class="brand-logo center pulse"><i class="far fa-grin-tongue-wink fa-2x"></i>Face Recognition</a>
+            <a href="#" class="brand-logo center pulse"><i class="far fa-meh-blank fa-2x"></i></a>
         </div>
     </nav>
 
@@ -65,7 +65,7 @@
             <div class="col s12 m6 offset-m3  app">
                 <!-- Floating add image button -->
                 <div class="fixed-action-btn">
-                    <a id="menu" class="waves-effect waves-light btn-large btn btn-floating blue" v-on:click="addImage" ><i class="material-icons">camera</i></a>
+                    <a id="menu" class="waves-effect waves-light btn-large btn btn-floating blue" v-on:click="addImage" v-bind:class="{'disabled':!faceCoords.length}" ><i class="material-icons">camera</i></a>
                 </div>
                 <!-- Display trained faces -->
                 <div class="col s12">
@@ -89,9 +89,6 @@
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
         
-        // Variable to store detection boxes array
-        let faceCoords = null;
-        
         // Starting detection on play
         videoElement.onplay = () => { 
             videoElement.play();
@@ -103,13 +100,14 @@
             el: '.app',
             data: {
                 images: [],
-                trackFace: null
+                trackFace: null,
+                faceCoords: []
             },
             methods: {
                 addImage: async function() {
                     const image = {};
-                    if (faceCoords && faceCoords.length) {
-                        const detect = faceCoords[0];
+                    if (this.faceCoords && this.faceCoords.length) {
+                        const detect = this.faceCoords[0];
                         const { detector, url } = await getCanvasData(detect);
                         image.url = url;
                         image.detector = detector;
@@ -144,29 +142,35 @@
 
             const result = await faceapi.tinyYolov2(videoElement, forwardParams);
             const detectionsForSize = result.map(det => det.forSize(width, height))
-            //faceapi.drawDetection(canvas, detectionsForSize, { withScore: false });
-            faceCoords = detectionsForSize;
+            // faceapi.drawDetection(canvas, detectionsForSize, { withScore: false });
+            app.faceCoords = detectionsForSize;
 
             // Check if there is some training faces available
-            if (app.images.length && result.length){
-                faceCoords.forEach( async detect => {
+            if (result.length){
+                app.faceCoords.forEach( async detect => {
                     const { detector } = await getCanvasData(detect);
-                    const face = recognize(detector);
+                    let name = 'unknown';
+                    let face;
+                    if (app.images.length) {
+                        face = recognize(detector);
+                        name = face.name;
+                    }
+                    faceapi.drawDetection(canvas, [detect], { withScore: false });
+                    console.log(app.faceCoords)
                     if (face && face.distance < 0.4) {
-                        console.log(face);
                         const { x, y, height } = detect.getBox();
                         faceapi.drawDetection(canvas, [detect], { withScore: false });
                         faceapi.drawText(
                             ctx,
                             x,
                             y + height,
-                            face.name,
+                            name,
                            { color: 'red', fontSize: 16 }
                         )
                     }
                 });         
             }
-            requestAnimationFrame(detectFaces);
+            setTimeout(detectFaces);
         }
 
         function recognize(face) {
