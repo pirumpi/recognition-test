@@ -144,14 +144,21 @@
 
             const result = await faceapi.tinyYolov2(videoElement, forwardParams);
             const detectionsForSize = result.map(det => det.forSize(width, height))
-            faceapi.drawDetection(canvas, detectionsForSize, { withScore: false });
+            // faceapi.drawDetection(canvas, detectionsForSize, { withScore: false });
             faceCoords = detectionsForSize;
 
             // Check if there is some training faces available
-            if (app.images.length && result.length){
+            if (result.length){
                 faceCoords.forEach( async detect => {
                     const { detector } = await getCanvasData(detect);
-                    const face = recognize(detector);
+                    let name = 'unknown';
+                    let face;
+                    if (app.images.length) {
+                        face = recognize(detector);
+                        name = face.name;
+                    }
+                    faceapi.drawDetection(canvas, [detect], { withScore: false });
+                    
                     if (face && face.distance < 0.4) {
                         console.log(face);
                         const { x, y, height } = detect.getBox()
@@ -159,13 +166,13 @@
                             ctx,
                             x,
                             y + height,
-                            face.name,
+                            name,
                            { color: 'red', fontSize: 16 }
                         )
                     }
                 });         
             }
-            requestAnimationFrame(detectFaces);
+            setTimeout(detectFaces);
         }
 
         function recognize(face) {
