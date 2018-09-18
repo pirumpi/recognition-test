@@ -28,8 +28,8 @@
 
         @media only screen and (max-width: 768px) {
             /* For mobile phones: */
-            video, canvas { width: 100%; height: unset; }
-            .camera { width: unset; height: unset; }
+            video, canvas { width: 300px; height: 420px; }
+            .camera { width: 300px; height: 420px; }
             .modal { width: 80%; }
         }
 
@@ -48,8 +48,8 @@
             <div class="col s12 m8 offset-m2 center">
                 <!-- Video display -->
                 <div class="camera">
-                    <video id="video" width="400" height="300" preload="auto" loop playsinline autoplay></video>
-                    <canvas id="canvas" width="400" height="300"></canvas>
+                    <video id="video"  preload="auto" loop playsinline autoplay></video>
+                    <canvas id="canvas" ></canvas>
                 </div>
             </div>
             <!--Loading model progress bar-->
@@ -181,14 +181,24 @@
             canvas.height = videoElement.videoHeight;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             event.data.forEach(function(rect) {
+                //onst { width, height, x } = getSize(rect);
                 ctx.strokeStyle = '#a64ceb';
-                ctx.strokeRect(rect.x, rect.y, rect.width, (rect.height * videoElement.videoHeight) / videoElement.height);
+                ctx.strokeRect(rect.x, rect.y, rect.width, (rect.height+rect.height/2));
                 ctx.font = '14px Helvetica';
                 ctx.fillStyle = "#fff";
                 ctx.fillText('x: ' + rect.x + 'px', rect.x + rect.width + 5, rect.y + 11);
                 ctx.fillText('y: ' + rect.y + 'px', rect.x + rect.width + 5, rect.y + 22);
             });
         });
+
+        function getSize(rect) {
+
+            return {
+                width: (rect.width * videoElement.videoWidth) / videoElement.width,
+                height: (rect.height * videoElement.videoHeight) / videoElement.height,
+                x: (rect.x * videoElement.videoWidth) / videoElement.width,
+            };
+        }
 
         function recognize(face) {
             return app.images.map(({detector, name }) => ({
