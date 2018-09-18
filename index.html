@@ -84,6 +84,7 @@
         const videoElement = document.querySelector('video');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
+        let isTracking = false;
 
         const tracker = new tracking.ObjectTracker('face');
         tracker.setInitialScale(2);
@@ -119,6 +120,9 @@
                 remove: function(image) {
                     this.trackFace = !!this.images.length;
                     this.images.splice(this.images.indexOf(image), 1)
+                },
+                setCoords: function(coods) {
+                    this.faceCoords = coods;
                 }
             }
         });
@@ -126,68 +130,50 @@
         async function getCanvasData(detect) {
             const cvs = document.createElement('canvas');
             const cts = cvs.getContext('2d');
-            cvs.width = detect.box.width;
-            cvs.height = detect.box.height;
-            cts.drawImage(videoElement, detect.box.x, detect.box.y, detect.box.width, detect.box.height, 0, 0, detect.box.width, detect.box.height);
+            cvs.width = detect.width;
+            cvs.height = detect.height;
+            cts.drawImage(videoElement, detect.x, detect.y, detect.width, detect.height, 0, 0, detect.width, detect.height);
             const detector = await faceapi.computeFaceDescriptor(cvs);
             const url = cvs.toDataURL('image/jpeg', 0.5);
             return { detector: detector, url: url };
         }
 
-        async function detectFaces() {
-            const { width, height } = faceapi.getMediaDimensions(videoElement);
-            canvas.width = width;
-            canvas.height = height;
-            
-            const forwardParams = { inputSize: parseInt(sizeType), scoreThreshold };
-
-            const result = await faceapi.tinyYolov2(videoElement, forwardParams);
-            const detectionsForSize = result.map(det => det.forSize(width, height))
-            // faceapi.drawDetection(canvas, detectionsForSize, { withScore: false });
-            app.faceCoords = detectionsForSize;
-
-            // Check if there is some training faces available
-            if (result.length) {
-                app.faceCoords.forEach( async detect => {
-                    const { detector } = await getCanvasData(detect);
-                    let name = 'unknown';
-                    let face;
-                    if (app.images.length) {
-                        face = recognize(detector);
-                        name = face.name;
-                    }
-                    faceapi.drawDetection(canvas, [detect], { withScore: false });
-                    console.log(app.faceCoords)
-                    if (face && face.distance < 0.4) {
-                        const { x, y, height } = detect.getBox();
-                        faceapi.drawDetection(canvas, [detect], { withScore: false });
-                        faceapi.drawText(
-                            ctx,
-                            x,
-                            y + height,
-                            name,
-                           { color: 'red', fontSize: 16 }
-                        )
-                    }
-                });         
+        tracker.on('track', async function(event) {
+            if (!isTracking) {
+                canvas.width = videoElement.videoWidth;
+                canvas.height = videoElement.videoHeight;
+                app.setCoords(event.data);
+                event.data.forEach(async function(rect) {
+                        await drawDetect(rect);
+                });
+                setTimeout(()=> isTracking = false);
             }
-            setTimeout(detectFaces);
-        }
+        });
 
-        tracker.on('track', function(event) {
-            canvas.width = videoElement.videoWidth;
-            canvas.height = videoElement.videoHeight;
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            event.data.forEach(function(rect) {
-                //onst { width, height, x } = getSize(rect);
+        async function drawDetect(rect) {
+            isTracking = true;
+            let face;
+            let name = 'unknown';
+            function draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
                 ctx.strokeStyle = '#a64ceb';
                 ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
                 ctx.font = '14px Helvetica';
                 ctx.fillStyle = "#fff";
                 ctx.fillText('x: ' + rect.x + 'px', rect.x + rect.width + 5, rect.y + 11);
                 ctx.fillText('y: ' + rect.y + 'px', rect.x + rect.width + 5, rect.y + 22);
-            });
-        });
+            }
+            
+            if (app.images.length) {
+                const { detector } = await getCanvasData(rect);
+                face = recognize(detector);
+                name = face.name;
+                draw();
+                ctx.fillText(name, rect.x + rect.width + 5, rect.y + 33);
+            } else {
+                draw()
+            }
+        }
 
         function getSize(rect) {
 
@@ -205,16 +191,11 @@
         }
 
         async function loadModels() {
-            //await faceapi.loadTinyYolov2Model('/models');
             await faceapi.loadFaceRecognitionModel('/models');
             document.querySelector('.model-progress').classList.add('hide');
             
             // start webcam
             tracking.track('#video', tracker, { camera: true });
-            //drawCanvas();
-            /*navigator.mediaDevices.getUserMedia({video : true})
-            .then(stream => videoElement.srcObject = stream,
-                err => console.log('ERROR: ', err));*/
         }
 
         loadModels();
