@@ -8,18 +8,15 @@
     <title>Face UI</title>
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0-rc.2/css/materialize.min.css">
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js" integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8=" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jquery-confirm/3.3.0/jquery-confirm.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-confirm/3.3.0/jquery-confirm.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0-rc.2/js/materialize.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/vue@2.5.17/dist/vue.js"></script>
     <script src="https://use.fontawesome.com/releases/v5.3.1/js/all.js" data-auto-replace-svg="nest"></script>
-    <script src="/js/tracking.js"></script>
-    <script src="/js/data/face.js"></script>
     <script src="/js/face-api.js"></script>
     <style>
-        .camera {
-            width: 640px; height: 480px; margin-top: 2vh; padding: 0 !important;
-            overflow: hidden; margin-right: auto; margin-left: auto; position: relative;
-        }
-
+        .camera { width: 640px; height: 480px; margin-top: 2vh; padding: 0 !important; overflow: hidden; margin-right: auto; margin-left: auto; position: relative; }
         .brand-logo svg { margin-top: auto; margin-bottom: auto;  display: block; margin-top: 0.5vh; }
         canvas { width: 640px; height: 480px;  position: absolute; top: 0; left: 0; }
         .model-progress, .app { margin-top: 3vh; }
@@ -51,14 +48,14 @@
                 </div>
             </div>
             <!--Loading model progress bar-->
-            <div class="col s12 m6 offset-m3 center model-progress">
+            <div class="col s12 center model-progress">
                 Loading Models
                 <div class="progress">
                     <div class="indeterminate"></div>
                 </div>
             </div>
 
-            <div class="col s12 m6 offset-m3  app">
+            <div class="col s12  app">
                 <!-- Floating add image button -->
                 <div class="fixed-action-btn">
                     <a id="menu" class="waves-effect waves-light btn-large btn btn-floating blue" v-on:click="addImage" v-bind:class="{'disabled':!faceCoords.length}" ><i class="material-icons">camera</i></a>
@@ -85,17 +82,44 @@
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
         let isTracking = false;
-
-        const tracker = new tracking.ObjectTracker('face');
-        tracker.setInitialScale(2);
-        tracker.setStepSize(2);
-        tracker.setEdgesDensity(0.1);
         
         // Starting detection on play
         videoElement.onplay = () => { 
             videoElement.play();
-            // detectFaces();
+            faceDetection();
         };
+
+        async function faceDetection() {
+            const { width, height } = faceapi.getMediaDimensions(videoElement);
+            canvas.width = width
+            canvas.height = height
+            const forwardParams = { inputSize: parseInt(sizeType), scoreThreshold }
+
+            const result = await faceapi.tinyYolov2(videoElement, forwardParams);
+            app.setCoords(result);
+            const detections = result.map(det => det.forSize(width, height));
+
+            detections.forEach(async d => {
+                let face, name;
+                if (app.images.length) {
+                    const detector = await getCanvasData(d);
+                    face = recognize(detector);
+                    name = face.name;
+                    console.log(face)
+                }
+                faceapi.drawDetection(canvas, [d]);
+            });
+
+            // console.log(detections)
+            // app.setCoords(result);
+            // faceapi.drawDetection(canvas, result.map(det => det.forSize(width, height)))
+            // if (app.images.length) {
+            //     result.forEach(face => {
+
+            //     })
+            // }
+            setTimeout(() => faceDetection())
+        }
      
         // Simple Vue app to databind trained faces
         const app = new Vue({
@@ -110,7 +134,7 @@
                     const image = {};
                     if (this.faceCoords && this.faceCoords.length) {
                         const detect = this.faceCoords[0];
-                        const { detector, url } = await getCanvasData(detect);
+                        const { detector, url } = await getCanvasData(detect.getBox());
                         image.url = url;
                         image.detector = detector;
                         image.name = prompt('face name') || 'Unknown';
@@ -128,6 +152,7 @@
         });
 
         async function getCanvasData(detect) {
+            console.log(detect)
             const cvs = document.createElement('canvas');
             const cts = cvs.getContext('2d');
             cvs.width = detect.width;
@@ -138,52 +163,6 @@
             return { detector: detector, url: url };
         }
 
-        tracker.on('track', async function(event) {
-            if (!isTracking) {
-                canvas.width = videoElement.videoWidth;
-                canvas.height = videoElement.videoHeight;
-                app.setCoords(event.data);
-                event.data.forEach(async function(rect) {
-                        await drawDetect(rect);
-                });
-                setTimeout(()=> isTracking = false);
-            }
-        });
-
-        async function drawDetect(rect) {
-            isTracking = true;
-            let face;
-            let name = 'unknown';
-            function draw() {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.strokeStyle = '#a64ceb';
-                ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
-                ctx.font = '14px Helvetica';
-                ctx.fillStyle = "#fff";
-                ctx.fillText('x: ' + rect.x + 'px', rect.x + rect.width + 5, rect.y + 11);
-                ctx.fillText('y: ' + rect.y + 'px', rect.x + rect.width + 5, rect.y + 22);
-            }
-            
-            if (app.images.length) {
-                const { detector } = await getCanvasData(rect);
-                face = recognize(detector);
-                name = face.name;
-                draw();
-                ctx.fillText(name, rect.x + rect.width + 5, rect.y + 33);
-            } else {
-                draw()
-            }
-        }
-
-        function getSize(rect) {
-
-            return {
-                width: (rect.width * videoElement.videoWidth) / videoElement.width,
-                height: (rect.height * videoElement.videoHeight) / videoElement.height,
-                x: (rect.x * videoElement.videoWidth) / videoElement.width,
-            };
-        }
-
         function recognize(face) {
             return app.images.map(({detector, name }) => ({
                 distance: faceapi.euclideanDistance(face, detector), name
@@ -192,10 +171,13 @@
 
         async function loadModels() {
             await faceapi.loadFaceRecognitionModel('/models');
+            await faceapi.loadTinyYolov2Model('/models');
             document.querySelector('.model-progress').classList.add('hide');
             
             // start webcam
-            tracking.track('#video', tracker, { camera: true });
+           navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
+               videoElement.srcObject = stream;
+           })
         }
 
         loadModels();
