@@ -8,180 +8,30 @@
     <title>Face UI</title>
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0-rc.2/css/materialize.min.css">
-    <script src="https://code.jquery.com/jquery-3.3.1.min.js" integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8=" crossorigin="anonymous"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jquery-confirm/3.3.0/jquery-confirm.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-confirm/3.3.0/jquery-confirm.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0-rc.2/js/materialize.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/vue@2.5.17/dist/vue.js"></script>
     <script src="https://use.fontawesome.com/releases/v5.3.1/js/all.js" data-auto-replace-svg="nest"></script>
-    <script src="/js/face-api.js"></script>
-    <style>
-        .camera { width: 640px; height: 480px; margin-top: 2vh; padding: 0 !important; overflow: hidden; margin-right: auto; margin-left: auto; position: relative; }
-        .brand-logo svg { margin-top: auto; margin-bottom: auto;  display: block; margin-top: 0.5vh; }
-        canvas { width: 640px; height: 480px;  position: absolute; top: 0; left: 0; }
-        .model-progress, .app { margin-top: 3vh; }
-        .modal { width: 420px; }
-
-        @media only screen and (max-width: 768px) {
-            /* For mobile phones: */
-            canvas, .camera, video { width: 320px; height: 240px; }
-            .modal { width: 80%; }
-        }
-
-    </style>
+    <script src="/node_modules/face-api.js/dist/face-api.min.js"></script>
+    <link rel="stylesheet" href="/css/index.css">
 </head>
+
 <body>
-    <!--Page header-->
     <nav>
         <div class="nav-wrapper blue">
             <a href="#" class="brand-logo center pulse"><i class="far fa-meh-blank fa-2x"></i></a>
         </div>
     </nav>
-
-    <div class="container">
-        <div class="row">
-            <div class="col s12 m8 offset-m2 center">
-                <!-- Video display -->
-                <div class="camera">
-                    <video id="video" width="640" height="480" preload="auto" loop playsinline autoplay></video>
-                    <canvas id="canvas" width="640" height="480"></canvas>
-                </div>
-            </div>
-            <!--Loading model progress bar-->
-            <div class="col s12 center model-progress">
-                Loading Models
-                <div class="progress">
-                    <div class="indeterminate"></div>
-                </div>
-            </div>
-
-            <div class="col s12  app">
-                <!-- Floating add image button -->
-                <div class="fixed-action-btn">
-                    <a id="menu" class="waves-effect waves-light btn-large btn btn-floating blue" v-on:click="addImage" v-bind:class="{'disabled':!faceCoords.length}" ><i class="material-icons">camera</i></a>
-                </div>
-                <!-- Display trained faces -->
-                <div class="col s12">
-                    <div class="chips" v-if="images.length">
-                        <div class="chip" v-for="image in images">
-                                <img :src="image.url" :alt="image.name"> {{image.name}}
-                            <i class="close material-icons" @click="remove(image)">close</i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <main id="main">
+        <!--Creating video element for facial recognition-->
+        <video id="video" width="720" height="560" autoplay muted></video>
+    </main>
+    <div class="app">
+        <a class="btn-floating btn-large waves-effect waves-light blue" v-on:click=capture><i
+                class="material-icons">add_a_photo</i></a>
     </div>
-    <script>
-        // Face detection config
-        let scoreThreshold = 0.5
-        let sizeType = '224'
 
-        // Querying all required elements from the DOM
-        const videoElement = document.querySelector('video');
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        let isTracking = false;
-        
-        // Starting detection on play
-        videoElement.onplay = () => { 
-            videoElement.play();
-            faceDetection();
-        };
 
-        async function faceDetection() {
-            const { width, height } = faceapi.getMediaDimensions(videoElement);
-            canvas.width = width
-            canvas.height = height
-            const forwardParams = { inputSize: parseInt(sizeType), scoreThreshold }
-
-            const result = await faceapi.tinyYolov2(videoElement, forwardParams);
-            app.setCoords(result);
-            const detections = result.map(det => det.forSize(width, height));
-
-            detections.forEach(async d => {
-                let face, name;
-                if (app.images.length) {
-                    const detector = await getCanvasData(d);
-                    face = recognize(detector);
-                    name = face.name;
-                    console.log(face)
-                }
-                faceapi.drawDetection(canvas, [d]);
-            });
-
-            // console.log(detections)
-            // app.setCoords(result);
-            // faceapi.drawDetection(canvas, result.map(det => det.forSize(width, height)))
-            // if (app.images.length) {
-            //     result.forEach(face => {
-
-            //     })
-            // }
-            setTimeout(() => faceDetection())
-        }
-     
-        // Simple Vue app to databind trained faces
-        const app = new Vue({
-            el: '.app',
-            data: {
-                images: [],
-                trackFace: null,
-                faceCoords: []
-            },
-            methods: {
-                addImage: async function() {
-                    const image = {};
-                    if (this.faceCoords && this.faceCoords.length) {
-                        const detect = this.faceCoords[0];
-                        const { detector, url } = await getCanvasData(detect.getBox());
-                        image.url = url;
-                        image.detector = detector;
-                        image.name = prompt('face name') || 'Unknown';
-                        this.images.push(image);
-                    }
-                },
-                remove: function(image) {
-                    this.trackFace = !!this.images.length;
-                    this.images.splice(this.images.indexOf(image), 1)
-                },
-                setCoords: function(coods) {
-                    this.faceCoords = coods;
-                }
-            }
-        });
-
-        async function getCanvasData(detect) {
-            console.log(detect)
-            const cvs = document.createElement('canvas');
-            const cts = cvs.getContext('2d');
-            cvs.width = detect.width;
-            cvs.height = detect.height;
-            cts.drawImage(videoElement, detect.x, detect.y, detect.width, detect.height, 0, 0, detect.width, detect.height);
-            const detector = await faceapi.computeFaceDescriptor(cvs);
-            const url = cvs.toDataURL('image/jpeg', 0.5);
-            return { detector: detector, url: url };
-        }
-
-        function recognize(face) {
-            return app.images.map(({detector, name }) => ({
-                distance: faceapi.euclideanDistance(face, detector), name
-            })).reduce((best, curr) => best.distance < curr.distance ? best : curr);
-        }
-
-        async function loadModels() {
-            await faceapi.loadFaceRecognitionModel('/models');
-            await faceapi.loadTinyYolov2Model('/models');
-            document.querySelector('.model-progress').classList.add('hide');
-            
-            // start webcam
-           navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
-               videoElement.srcObject = stream;
-           })
-        }
-
-        loadModels();
-        
-    </script>
+    <script type="module" src="/js/index.js"></script>
 </body>
+
 </html>
