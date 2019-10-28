@@ -33,5 +33,5 @@ video.onplay = () => {
         faceapi.draw.drawDetections(canvas, resizedDetection);
         faceapi.draw.drawFaceLandmarks(canvas, resizedDetection);
         faceapi.draw.drawFaceExpressions(canvas, resizedDetection);
-    })
+    });
 }
