@@ -4,7 +4,7 @@
   "description": "",
   "main": "server.js",
   "dependencies": {
-    "express": "^4.17.1",
+    "express": "^4.18.2",
     "face-api.js": "^0.21.0",
     "materialize-css": "^1.0.0"
   },
